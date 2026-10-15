@@ -19,6 +19,18 @@ class GestorIncidencias {
         .toList();
   }
 
+  List<Incidencia> filtrar({String texto = '', String? estado, String? prioridad}) {
+    final consulta = texto.trim().toLowerCase();
+    return incidencias.where((x) {
+      final coincideTexto = consulta.isEmpty ||
+          x.titulo.toLowerCase().contains(consulta) ||
+          x.descripcion.toLowerCase().contains(consulta);
+      final coincideEstado = estado == null || x.estado == estado;
+      final coincidePrioridad = prioridad == null || x.prioridad == prioridad;
+      return coincideTexto && coincideEstado && coincidePrioridad;
+    }).toList();
+  }
+
   Incidencia? porId(String id) {
     for (var x in incidencias) {
       if (x.id == id) return x;
@@ -40,8 +52,18 @@ class GestorIncidencias {
     await datos.guardar(incidencias);
   }
 
+  Future<void> cambiarPrioridad(String id, String prioridad) async {
+    for (var i = 0; i < incidencias.length; i++) {
+      if (incidencias[i].id == id) {
+        incidencias[i].prioridad = prioridad;
+        break;
+      }
+    }
+    await datos.guardar(incidencias);
+  }
+
   Future<void> crear(String titulo, String descripcion, String cliente,
-      String categoria) async {
+      String categoria, String prioridad) async {
     final nuevo = Incidencia(
       id: 'INC-${DateTime.now().microsecondsSinceEpoch}',
       titulo: titulo,
@@ -49,6 +71,7 @@ class GestorIncidencias {
       cliente: cliente,
       categoria: categoria,
       estado: 'Pendiente',
+      prioridad: prioridad,
       fecha: DateTime.now().toIso8601String().split('T').first,
     );
     incidencias.insert(0, nuevo);

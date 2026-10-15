@@ -13,9 +13,18 @@ class PantallaPrincipal extends StatefulWidget {
 
 class _PantallaPrincipalState extends State<PantallaPrincipal> {
   final GestorIncidencias g = GestorIncidencias();
+  final controlBusqueda = TextEditingController();
   bool cargando = true;
   String? error;
   String busqueda = '';
+  String? filtroEstado;
+  String? filtroPrioridad;
+
+  @override
+  void dispose() {
+    controlBusqueda.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -40,6 +49,39 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
     if (estado == 'Resuelta') return const Color(0xFF147D64);
     if (estado == 'En proceso') return const Color(0xFFB56B13);
     return const Color(0xFFAC4052);
+  }
+
+  Color colorPrioridad(String prioridad) {
+    if (prioridad == 'Alta') return const Color(0xFFAC4052);
+    if (prioridad == 'Baja') return const Color(0xFF147D64);
+    return const Color(0xFFB56B13);
+  }
+
+  bool get hayFiltrosActivos =>
+      busqueda.trim().isNotEmpty || filtroEstado != null || filtroPrioridad != null;
+
+  void limpiarFiltros() {
+    controlBusqueda.clear();
+    setState(() {
+      busqueda = '';
+      filtroEstado = null;
+      filtroPrioridad = null;
+    });
+  }
+
+  Widget selectorFiltro(String etiqueta, String? valor, List<String> opciones,
+      void Function(String?) onChanged) {
+    return Expanded(
+      child: DropdownButtonFormField<String?>(
+        value: valor,
+        decoration: InputDecoration(labelText: etiqueta, border: const OutlineInputBorder()),
+        items: [
+          const DropdownMenuItem<String?>(value: null, child: Text('Todos')),
+          ...opciones.map((o) => DropdownMenuItem<String?>(value: o, child: Text(o))),
+        ],
+        onChanged: onChanged,
+      ),
+    );
   }
 
   Widget resumen(String etiqueta, String valor, IconData icono) {
@@ -84,7 +126,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
 
   @override
   Widget build(BuildContext context) {
-    final items = g.buscar(busqueda);
+    final items = g.filtrar(texto: busqueda, estado: filtroEstado, prioridad: filtroPrioridad);
     return Scaffold(
       appBar: AppBar(
         title: const Text('NexaSoft | Incidencias'),
@@ -151,6 +193,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 5),
                           child: TextField(
+                            controller: controlBusqueda,
                             decoration: const InputDecoration(
                               labelText: 'Buscar incidencias',
                               hintText: 'Ejemplo: WiFi, correo, pantalla',
@@ -158,6 +201,25 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
                               border: OutlineInputBorder(),
                             ),
                             onChanged: (texto) => setState(() => busqueda = texto),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 5),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              selectorFiltro('Estado', filtroEstado, const ['Pendiente', 'En proceso', 'Resuelta'],
+                                  (v) => setState(() => filtroEstado = v)),
+                              const SizedBox(width: 10),
+                              selectorFiltro('Prioridad', filtroPrioridad, const ['Baja', 'Media', 'Alta'],
+                                  (v) => setState(() => filtroPrioridad = v)),
+                              const SizedBox(width: 10),
+                              IconButton(
+                                tooltip: 'Limpiar filtros',
+                                onPressed: hayFiltrosActivos ? limpiarFiltros : null,
+                                icon: const Icon(Icons.filter_alt_off_outlined),
+                              ),
+                            ],
                           ),
                         ),
                         Padding(
@@ -169,7 +231,25 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
                         ),
                         Expanded(
                           child: items.isEmpty
-                              ? const Center(child: Text('No se encontraron incidencias'))
+                              ? Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                      const Text(
+                                        'No se encontraron incidencias con los filtros seleccionados.',
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      if (hayFiltrosActivos) ...[
+                                        const SizedBox(height: 12),
+                                        TextButton.icon(
+                                          onPressed: limpiarFiltros,
+                                          icon: const Icon(Icons.filter_alt_off_outlined),
+                                          label: const Text('Limpiar filtros'),
+                                        ),
+                                      ],
+                                    ]),
+                                  ),
+                                )
                               : ListView.builder(
                                   padding: const EdgeInsets.only(left: 12, right: 12, bottom: 100),
                                   itemCount: items.length,
@@ -187,9 +267,15 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
                                             children: [
                                               Text('${item.id}  ·  ${item.cliente}'),
                                               const SizedBox(height: 6),
-                                              Text(item.estado, style: TextStyle(
-                                                color: colorEstado(item.estado), fontWeight: FontWeight.bold,
-                                              )),
+                                              Row(children: [
+                                                Text(item.estado, style: TextStyle(
+                                                  color: colorEstado(item.estado), fontWeight: FontWeight.bold,
+                                                )),
+                                                const Text('  ·  '),
+                                                Text('Prioridad ${item.prioridad}', style: TextStyle(
+                                                  color: colorPrioridad(item.prioridad), fontWeight: FontWeight.bold,
+                                                )),
+                                              ]),
                                             ],
                                           ),
                                         ),
